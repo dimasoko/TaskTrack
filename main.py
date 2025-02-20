@@ -23,10 +23,8 @@ class User:
         data = cls.get_user()
         return cls(*data)
 
-    @staticmethod
-    def print_user() -> None:
-        user = User.create_user()
-        print(f"Имя: {user.tgName}, Ник: {user.tgNickName}, Telegram ID: {user.tgID}")
+    def print_user(self) -> None: 
+        print(f"Имя: {self.tgName}, Ник: {self.tgNickName}, Telegram ID: {self.tgID}")
 
 class Stat:
     @staticmethod
