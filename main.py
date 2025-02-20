@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+import datetime
 
 class User:
     def __init__(self, tgID: int, tgNickName: str, tgName: str):
@@ -6,65 +6,145 @@ class User:
         self.tgNickName = tgNickName
         self.tgName = tgName
 
-    def get_tgName(self) -> str:
-        return self.tgName
+    @staticmethod
+    def get_user() -> tuple:
+        while True:
+            try:
+                tgID = int(input("Укажите свой ID: "))
+                break
+            except ValueError:
+                print("Ошибка! ID должен быть числом.")
+        tgName = input("Укажите ваше имя: ").strip()
+        tgNickName = input("Напишите свой никнейм: ").strip()
+        return tgID, tgName, tgNickName
 
-    def get_tgNickName(self) -> str:
-        return self.tgNickName
+    @classmethod
+    def create_user(cls) -> 'User':
+        data = cls.get_user()
+        return cls(*data)
+
+    @staticmethod
+    def print_user() -> None:
+        user = User.create_user()
+        print(f"Имя: {user.tgName}, Ник: {user.tgNickName}, Telegram ID: {user.tgID}")
 
 class Stat:
-    def __init__(self, done: int, improgress: int):
+    @staticmethod
+    def get_task_counts() -> tuple[int, int]:
+        while True:
+            try:
+                done = int(input("Выполнено тасков: "))
+                inprogress = int(input("Тасков в работе: "))
+                if done < 0 or inprogress < 0:
+                    raise ValueError
+                return done, inprogress
+            except ValueError:
+                print("Ошибка! Введите целые неотрицательные числа.")
+
+    @classmethod
+    def create_stat(cls) -> 'Stat':
+        done, inprogress = cls.get_task_counts()
+        return cls(done, inprogress)
+
+    def __init__(self, done: int, inprogress: int):
         self.done = done
-        self.improgress = improgress
+        self.inprogress = inprogress
 
-    def count_done_tasks(self) -> int:
-        return self.done
+    def show_stat(self) -> None:
+        print(f"Прогресс: {self.done} завершено, {self.inprogress} в работе")
 
-    def count_improgress_tasks(self) -> int:
-        return self.improgress
+class RecurringNotification:
+    @staticmethod
+    def validate_time(time_str: str) -> bool:
+        try:
+            datetime.datetime.strptime(time_str, "%H:%M")
+            return True
+        except ValueError:
+            return False
 
-    def get_stat(self) -> dict:
-        return {
-            'done': self.done,
-            'inprogress': self.improgress
-        }
+    @classmethod
+    def create_notification(cls) -> 'RecurringNotification':
+        while True:
+            time = input("Время уведомления (ЧЧ:ММ): ")
+            if cls.validate_time(time):
+                break
+            print("Неверный формат времени!")
+        
+        while True:
+            try:
+                days = int(input("Интервал (дни): "))
+                if days <= 0:
+                    raise ValueError
+                break
+            except ValueError:
+                print("Ошибка! Введите целое число больше 0.")
 
-class RecturingNotification:
-    def __init__(self, time: datetime, days: int):
+        notName = input("Название уведомления: ").strip()
+        return cls(time, days, notName)
+
+    def __init__(self, time: str, days: int, notName: str):
         self.time = time
         self.days = days
+        self.notName = notName
 
-    def get_date_s_by_days(self) -> datetime:
-        return datetime.now() + timedelta(days=self.days)
-
-    def get_time(self) -> datetime:
-        return self.time
-
-    def get_days(self) -> int:
-        return self.days
-
-    def do_notify(self):
-        # Логика для отправки уведомления
-        pass
+    def show_notification(self) -> None:
+        day_form = "день" if self.days == 1 else "дней"
+        print(f"Уведомление '{self.notName}' каждый {self.days} {day_form} в {self.time}")
 
 class Task:
-    def __init__(self, name: str, description: str, priority: int):
+    @classmethod
+    def create_task(cls) -> 'Task':
+        name = input("Название задачи: ").strip()
+        description = input("Описание: ").strip()
+        
+        while True:
+            try:
+                priority = int(input("Приоритет (1-5): "))
+                if 1 <= priority <= 5:
+                    break
+                print("Приоритет должен быть от 1 до 5")
+            except ValueError:
+                print("Ошибка! Введите число.")
+
+        deadline = Schedule.get_deadline()
+        return cls(name, description, priority, deadline)
+
+    def __init__(self, name: str, description: str, priority: int, deadline: datetime.datetime):
         self.name = name
         self.description = description
         self.priority = priority
+        self.deadline = deadline
 
-    def get_taskname(self) -> str:
-        return self.name
-
-    def get_taskdescription(self) -> str:
-        return self.description
-
-    def get_taskpriority(self) -> int:
-        return self.priority
+    def show_task(self) -> None:
+        print(f"""Задача: {self.name}
+Описание: {self.description}
+Приоритет: {'★'*self.priority}
+Срок: {self.deadline.strftime('%d.%m.%Y')}""")
 
 class Schedule:
-    def __init__(self, endingDate: datetime):
-        self.endingDate = endingDate
+    @staticmethod
+    def get_deadline() -> datetime.datetime:
+        while True:
+            try:
+                date_str = input("Дата окончания (ДД.ММ.ГГГГ): ")
+                return datetime.datetime.strptime(date_str, "%d.%m.%Y")
+            except ValueError:
+                print("Неверный формат даты! Используйте ДД.ММ.ГГГГ")
 
-    def get_endingDate(self) -> datetime:
-        return self.endingDate
+# тест работы 
+if __name__ == "__main__":
+    print("=== Тест пользователя ===")
+    user = User.create_user()
+    user.print_user()
+
+    print("\n=== Тест статистики ===")
+    stat = Stat.create_stat()
+    stat.show_stat()
+
+    print("\n=== Тест уведомления ===")
+    notif = RecurringNotification.create_notification()
+    notif.show_notification()
+
+    print("\n=== Тест задачи ===")
+    task = Task.create_task()
+    task.show_task()
