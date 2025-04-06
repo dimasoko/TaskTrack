@@ -1,148 +1,105 @@
 import datetime
-
-class User:
-    def __init__(self, tgID: int, tgNickName: str, tgName: str):
-        self.tgID = tgID
-        self.tgNickName = tgNickName
-        self.tgName = tgName
-
-    @staticmethod
-    def get_user() -> tuple:
-        while True:
-            try:
-                tgID = int(input("Укажите свой ID: "))
-                break
-            except ValueError:
-                print("Ошибка! ID должен быть числом.")
-        tgName = input("Укажите ваше имя: ").strip()
-        tgNickName = input("Напишите свой никнейм: ").strip()
-        return tgID, tgName, tgNickName
-
-    @classmethod
-    def create_user(cls) -> 'User':
-        data = cls.get_user()
-        return cls(*data)
-
-    def print_user(self) -> None: 
-        print(f"Имя: {self.tgName}, Ник: {self.tgNickName}, Telegram ID: {self.tgID}")
-
-class Stat:
-    @staticmethod
-    def get_task_counts() -> tuple[int, int]:
-        while True:
-            try:
-                done = int(input("Выполнено тасков: "))
-                inprogress = int(input("Тасков в работе: "))
-                if done < 0 or inprogress < 0:
-                    raise ValueError
-                return done, inprogress
-            except ValueError:
-                print("Ошибка! Введите целые неотрицательные числа.")
-
-    @classmethod
-    def create_stat(cls) -> 'Stat':
-        done, inprogress = cls.get_task_counts()
-        return cls(done, inprogress)
-
-    def __init__(self, done: int, inprogress: int):
-        self.done = done
-        self.inprogress = inprogress
-
-    def show_stat(self) -> None:
-        print(f"Прогресс: {self.done} завершено, {self.inprogress} в работе")
-
-class RecurringNotification:
-    @staticmethod
-    def validate_time(time_str: str) -> bool:
-        try:
-            datetime.datetime.strptime(time_str, "%H:%M")
-            return True
-        except ValueError:
-            return False
-
-    @classmethod
-    def create_notification(cls) -> 'RecurringNotification':
-        while True:
-            time = input("Время уведомления (ЧЧ:ММ): ")
-            if cls.validate_time(time):
-                break
-            print("Неверный формат времени!")
-        
-        while True:
-            try:
-                days = int(input("Интервал (дни): "))
-                if days <= 0:
-                    raise ValueError
-                break
-            except ValueError:
-                print("Ошибка! Введите целое число больше 0.")
-
-        notName = input("Название уведомления: ").strip()
-        return cls(time, days, notName)
-
-    def __init__(self, time: str, days: int, notName: str):
-        self.time = time
-        self.days = days
-        self.notName = notName
-
-    def show_notification(self) -> None:
-        day_form = "день" if self.days == 1 else "дней"
-        print(f"Уведомление '{self.notName}' каждый {self.days} {day_form} в {self.time}")
+import unittest
+from typing import Dict, List
 
 class Task:
-    @classmethod
-    def create_task(cls) -> 'Task':
-        name = input("Название задачи: ").strip()
-        description = input("Описание: ").strip()
-        
-        while True:
-            try:
-                priority = int(input("Приоритет (1-5): "))
-                if 1 <= priority <= 5:
-                    break
-                print("Приоритет должен быть от 1 до 5")
-            except ValueError:
-                print("Ошибка! Введите число.")
-
-        deadline = Schedule.get_deadline()
-        return cls(name, description, priority, deadline)
-
-    def __init__(self, name: str, description: str, priority: int, deadline: datetime.datetime):
-        self.name = name
+    def __init__(self, task_id: int, title: str, description: str, priority: str, due_date: datetime.datetime):
+        self.id = task_id
+        self.title = title
         self.description = description
         self.priority = priority
-        self.deadline = deadline
+        self.completed = False
+        self.due_date = due_date 
 
-    def show_task(self) -> None:
-        print(f"""Задача: {self.name}
-Описание: {self.description}
-Приоритет: {'★'*self.priority}
-Срок: {self.deadline.strftime('%d.%m.%Y')}""")
+    def mark_as_completed(self):
+        self.completed = True
 
-class Schedule:
+    def is_overdue(self) -> bool:
+        return datetime.datetime.now() > self.due_date
+
+    def __str__(self):
+        status = "✅" if self.completed else "❌"
+        return f"[{status}] {self.title} (ID: {self.id}) | Приоритет: {self.priority} | Дата: {self.due_date.strftime('%Y-%m-%d %H:%M')}"
+
+class User:
+    def __init__(self, username: str, password: str):
+        self.username = username
+        self.password = password
+        self.tasks: List[Task] = []
+
+    def add_task(self, task: Task):
+        self.tasks.append(task)
+
+    def remove_task(self, task_id: int):
+        self.tasks = [task for task in self.tasks if task.id != task_id]
+
+class Authenticator:
+    def __init__(self):
+        self.users: Dict[str, User] = {}
+
+    def register(self, username: str, password: str):
+        if username in self.users:
+            raise ValueError("Username already exists")
+        self.users[username] = User(username, password)
+
+    def login(self, username: str, password: str) -> User | None:
+        user = self.users.get(username)
+        return user if user and user.password == password else None
+
+class TaskManager:
+    def __init__(self, user: User):
+        self.user = user
+
+    def list_tasks(self):
+        return self.user.tasks
+
+    def add_task(self, title: str, description: str, priority: str, due_date_str: str):
+        due_date = datetime.datetime.strptime(due_date_str, "%Y-%m-%d %H:%M")
+        task = Task(len(self.user.tasks) + 1, title, description, priority, due_date)
+        self.user.add_task(task)
+
+    def mark_as_completed(self, task_id: int):
+        task = next((t for t in self.user.tasks if t.id == task_id), None)
+        if task:
+            task.mark_as_completed()
+
+class NotificationHandler:
     @staticmethod
-    def get_deadline() -> datetime.datetime:
-        while True:
-            try:
-                date_str = input("Дата окончания (ДД.ММ.ГГГГ): ")
-                return datetime.datetime.strptime(date_str, "%d.%m.%Y")
-            except ValueError:
-                print("Неверный формат даты! Используйте ДД.ММ.ГГГГ")
+    def check_all_reminders(users: Dict[str, User]):
+        for user in users.values():
+            for task in user.tasks:
+                if not task.completed and task.is_overdue():
+                    print(f"Напоминание для {user.username}: Задача '{task.title}' просрочена!")
 
-# тест работы 
+class Storage:
+    def __init__(self):
+        self.data = {}
+
+    def save(self):
+        # потом дополним
+        print("Данные сохранены")
+
+# тесты
+class TestTaskTracker(unittest.TestCase):
+    def test_reminder(self):
+        user = User("test", "123")
+        task = Task(1, "Buy milk", "", "high", datetime.datetime.now() - datetime.timedelta(days=1))
+        user.add_task(task)
+        NotificationHandler.check_all_reminders({"test": user})
+        self.assertTrue(task.is_overdue())
+
+    def test_add_task(self):
+        auth = Authenticator()
+        auth.register("user1", "pass")
+        user = auth.login("user1", "pass")
+        manager = TaskManager(user)
+        manager.add_task("Test", "", "medium", "2024-01-01 12:00")
+        self.assertEqual(len(user.tasks), 1)
+
+    def test_mark_completed(self):
+        task = Task(1, "Test", "", "high", datetime.datetime.now())
+        task.mark_as_completed()
+        self.assertTrue(task.completed)
+
 if __name__ == "__main__":
-    print("=== Тест пользователя ===")
-    user = User.create_user()
-    user.print_user()
-
-    print("\n=== Тест статистики ===")
-    stat = Stat.create_stat()
-    stat.show_stat()
-
-    print("\n=== Тест уведомления ===")
-    notif = RecurringNotification.create_notification()
-    notif.show_notification()
-
-    print("\n=== Тест задачи ===")
-    task = Task.create_task()
-    task.show_task()
+    unittest.main()
