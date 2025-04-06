@@ -40,21 +40,8 @@ class Task(TaskBase):
     def __len__(self):
         return len(self.description)
 
-class Authenticator:
-    _total_users = 0
-
-    @staticmethod
-    def get_total_users() -> int:
-        return Authenticator._total_users
-
-    def __init__(self):
-        self.users: Dict[str, User] = {}
-
-    def register(self, username: str, password: str):
-        if username in self.users:
-            raise ValueError("Username already exists")
-        self.users[username] = User(username, password)
-        Authenticator._total_users += 1
+    def mark_as_completed(self):
+        self.completed = True
 
 class User:
     def __init__(self, username: str, password: str):
@@ -71,7 +58,27 @@ class User:
         self.tasks = []
         self.archived_tasks = []
 
-class TaskManager: # ошибки
+class Authenticator:
+    _total_users = 0
+
+    @staticmethod
+    def get_total_users() -> int:
+        return Authenticator._total_users
+
+    def __init__(self):
+        self.users: Dict[str, User] = {}
+
+    def register(self, username: str, password: str):
+        if username in self.users:
+            raise ValueError("Username already exists")
+        self.users[username] = User(username, password)
+        Authenticator._total_users += 1  # увеличение счетчика
+
+    def login(self, username: str, password: str) -> Optional[User]:
+        user = self.users.get(username)
+        return user if user and user.password == password else None
+
+class TaskManager:
     def __init__(self, user: User):
         self.user = user
 
@@ -96,6 +103,9 @@ class NotificationHandler:
 
 # тесты
 class TestTaskTracker(unittest.TestCase):
+    def setUp(self):
+        Authenticator._total_users = 0  # для теста обнуляем
+
     def test_abstract_class(self):
         task = Task(1, "Test", "", "high", datetime.datetime.now())
         self.assertIsInstance(task, TaskBase)
