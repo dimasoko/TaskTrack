@@ -2,23 +2,38 @@ import datetime
 import unittest
 from typing import Dict, List, Optional
 from abc import ABC, abstractmethod
+import logging
+import tkinter as tk
+import sys
+from PyQt6.QtWidgets import QApplication, QMainWindow, QListWidget, QPushButton, QVBoxLayout, QWidget, QLineEdit, QLabel, QInputDialog
+from datetime import datetime
 
-# иерархия исключений
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    filename='task_tracker.log'
+)
+
 class BaseTaskException(Exception):
-    pass
+    def __init__(self, message, context=None):
+        super().__init__(message)
+        self.message = message
+        self.context = context or {}
+        self.log()
+
+    def log(self):
+        error_details = f"Ошибка: {self.message}"
+        if self.context:
+            error_details += f" | Контекст: {self.context}"
+        logging.error(error_details)
 
 class CustomError(BaseTaskException):
     pass
 
 class SpecificError(CustomError):
-    pass
-
-class BaseUser:
-    def __init__(self, username: str):
-        self._username = username  # защищенный атрибут
-
-    def get_username(self):
-        return self._username
+    def __init__(self, message, context=None):
+        super().__init__(message, context)
+        print(f"⚠️ Специфическая ошибка: {message}")
 
 class TaskBase(ABC):
     @abstractmethod
@@ -29,22 +44,25 @@ class TaskBase(ABC):
     def is_overdue(self) -> bool:
         pass
 
-class Task(TaskBase): # наследуем
-    def __init__(self, task_id: int, title: str, description: str, priority: str, due_date: datetime.datetime):
-        try:
-            if priority not in ["low", "medium", "high"]:
-                raise SpecificError("Неверный уровень приоритета")
-            self.id = task_id
-            self.title = title
-            self.description = description
-            self.priority = priority
-            self.completed = False
-            self.due_date = due_date
-        except SpecificError as se:
-            print(f"Ошибка при создании задачи: {se}")
-            raise
-        finally:
-            print("Задача обработана")
+    @abstractmethod
+    def process(self):
+        """Абстрактный метод для полиморфного поведения"""
+        pass
+
+    @abstractmethod
+    def report(self):
+        """Абстрактный метод для отчетов"""
+        pass
+
+# Производные классы
+class RegularTask(TaskBase):
+    def __init__(self, task_id, title, description, priority, due_date):
+        self.id = task_id
+        self.title = title
+        self.description = description
+        self.priority = priority
+        self.completed = False
+        self.due_date = due_date
 
     def is_overdue(self) -> bool:
         return datetime.datetime.now() > self.due_date
@@ -53,116 +71,160 @@ class Task(TaskBase): # наследуем
         status = "✅" if self.completed else "❌"
         return f"[{status}] {self.title} (ID: {self.id}) | Приоритет: {self.priority}"
 
-    def __str__(self):
-        return self.display()
+    def process(self):
+        logging.info(f"Обработка обычной задачи: {self.title}")
+    
+    def report(self):
+        return f"Задача '{self.title}' завершена"
 
-    def __repr__(self):
-        return f"Task({self.id}, '{self.title}', '{self.description}', '{self.priority}', {self.due_date!r})"
+class RecurringTask(TaskBase):
+    def __init__(self, task_id, title, description, priority, due_date, frequency):
+        super().__init__()
+        self.id = task_id
+        self.title = title
+        self.description = description
+        self.priority = priority
+        self.completed = False
+        self.due_date = due_date
+        self.frequency = frequency  # 'daily', 'weekly'
 
-    def __eq__(self, other):
-        if isinstance(other, Task):
-            return (
-                self.id == other.id and
-                self.title == other.title and
-                self.description == other.description and
-                self.priority == other.priority and
-                self.due_date == other.due_date and
-                self.completed == other.completed
-            )
-        return False
+    def is_overdue(self) -> bool:
+        return datetime.datetime.now() > self.due_date
 
-    def mark_as_completed(self):
-        self.completed = True
+    def display(self) -> str:
+        return f"[🔄] {self.title} (ID: {self.id}) | Частота: {self.frequency}"
 
+    def process(self):
+        logging.info(f"Обработка повторяющейся задачи: {self.title} (Частота: {self.frequency})")
+    
+    def report(self):
+        return f"Повторяющаяся задача '{self.title}' выполнена"
+
+# Лямбда-выражения
+def filter_tasks(tasks, criteria):
+    return list(filter(criteria, tasks))
+
+def sort_tasks(tasks, key=lambda x: x.due_date):
+    return sorted(tasks, key=key)
+
+# Базовый класс пользователя
+class BaseUser:
+    def __init__(self, username: str):
+        self._username = username
+
+    def get_username(self):
+        return self._username
+
+# Производный класс пользователя
 class User(BaseUser):
     def __init__(self, username: str, password: str):
-        super().__init__(username)  # звоним конструктору базового класса
+        super().__init__(username)
         self._password = password
-        self.tasks: List[Task] = []
+        self.tasks: List[TaskBase] = []  # Теперь общий интерфейс
 
-    def get_protected(self):
-        return f"Username: {self._username}, Password: {self._password}"
-
-    def add_task(self, task: Task):
+    def add_task(self, task: TaskBase):
         self.tasks.append(task)
+        logging.info(f"Добавлена задача {task.title} для {self._username}")
 
     def archive_completed(self):
-        self.tasks = [task for task in self.tasks if not task.completed]
+        self.tasks = [t for t in self.tasks if not t.completed]
+        logging.info(f"Архивация завершенных задач для {self._username}")
 
-# конструкторы
 class Authenticator:
-    _total_users = 0
-
     def __init__(self):
         self.users: Dict[str, User] = {}
 
-    def register(self, username: str, password: str):
-        try:
-            if not username:
-                raise SpecificError("Имя пользователя не может быть пустым")
-            if username in self.users:
-                raise CustomError("Пользователь уже существует")
-            self.users[username] = User(username, password)
-            Authenticator._total_users += 1
-        except SpecificError as se:
-            print(f"Специфическая ошибка: {se}")
-            raise
-        except CustomError as ce:
-            print(f"Общая ошибка: {ce}")
-            raise
-        finally:
-            print("Регистрация завершена")
+    def register(self, username, password):
+        logging.info(f"Попытка регистрации {username}")
+        if not username:
+            raise SpecificError("Имя пользователя не может быть пустым", {"action": "register"})
+        if username in self.users:
+            raise CustomError("Пользователь уже существует", {"action": "register"})
+        self.users[username] = User(username, password)
+        logging.info(f"Успешная регистрация {username}")
 
-    def login(self, username: str, password: str) -> Optional[User]:
+    def login(self, username, password):
+        logging.info(f"Попытка входа {username}")
         user = self.users.get(username)
-        return user if user and user._password == password else None  # доступ к защищенному атрибуту
+        if user and user._password == password:
+            logging.info(f"Успешный вход {username}")
+            return user
+        else:
+            logging.error(f"Ошибка входа для {username}")
+            return None
 
-# строковое представление
 class TaskManager:
     def __init__(self, user: User):
         self.user = user
 
-    def add_task(self, title: str, description: str, priority: str, due_date_str: str):
-        try:
-            due_date = datetime.datetime.strptime(due_date_str, "%Y-%m-%d %H:%M")
-            task = Task(len(self.user.tasks) + 1, title, description, priority, due_date)
-            self.user.add_task(task)
-        except ValueError:
-            raise CustomError("Неверный формат даты")
-        except SpecificError as se:
-            print(f"Ошибка при создании задачи: {se}")
-            raise
-        finally:
-            print("Обработка завершена")
+    def add_task(self, task_type, title, description, priority, due_date_str, **kwargs):
+        due_date = datetime.datetime.strptime(due_date_str, "%Y-%m-%d %H:%M")
+        task_id = len(self.user.tasks) + 1
+        if task_type == "regular":
+            task = RegularTask(task_id, title, description, priority, due_date)
+        elif task_type == "recurring":
+            frequency = kwargs.get("frequency", "weekly")
+            task = RecurringTask(task_id, title, description, priority, due_date, frequency)
+        else:
+            raise ValueError("Неверный тип задачи")
+        self.user.add_task(task)
+        return task
 
-# тесты
-class TestTaskTracker(unittest.TestCase):
-    def test_exceptions(self):
-        try:
-            Task(1, "Test", "", "invalid", datetime.datetime.now())
-        except SpecificError:
-            pass
+    # использование лямбд для сортировки/фильтрации
+    def get_overdue_tasks(self):
+        return filter_tasks(self.user.tasks, lambda x: x.is_overdue())
 
-    def test_inheritance(self):
-        user = User("test", "123")
-        self.assertEqual(user.get_username(), "test")
-        self.assertEqual(user.get_protected(), "Username: test, Password: 123")
+    def sort_by_priority(self):
+        return sort_tasks(self.user.tasks, lambda x: ["low", "medium", "high"].index(x.priority))
 
-    def test_str_repr(self):
-        task = Task(1, "Test", "", "high", datetime.datetime(2025, 1, 1))
-        self.assertIn("Test", str(task))
-        reloaded_task = eval(repr(task))
-        self.assertEqual(reloaded_task.id, task.id)
-        self.assertEqual(reloaded_task.title, task.title)
-        self.assertEqual(reloaded_task.description, task.description)
-        self.assertEqual(reloaded_task.priority, task.priority)
-        self.assertEqual(reloaded_task.due_date, task.due_date)
+class TaskApp(QMainWindow):
+    def __init__(self, user):
+        super().__init__()
+        self.user = user
+        self.task_manager = TaskManager(user)
 
-    def test_auth(self):
-        auth = Authenticator()
-        auth.register("user1", "pass")
-        user = auth.login("user1", "pass")
-        self.assertIsInstance(user, User)
+        self.setWindowTitle("Task Tracker")
+        self.setGeometry(100, 100, 400, 300)
+
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout()
+
+        self.task_list = QListWidget()
+        layout.addWidget(self.task_list)
+
+        self.title_label = QLabel("Название задачи:")
+        layout.addWidget(self.title_label)
+        self.title_input = QLineEdit()
+        layout.addWidget(self.title_input)
+
+        self.add_button = QPushButton("Добавить задачу")
+        self.add_button.clicked.connect(self.add_task)
+        layout.addWidget(self.add_button)
+
+        central_widget.setLayout(layout)
+
+    def add_task(self):
+        title = self.title_input.text().strip()
+        if not title:
+            title, ok = QInputDialog.getText(self, "Новая задача", "Введите название задачи:")
+            if not (ok and title.strip()):
+                return
+        task = self.task_manager.add_task("regular", title, "", "medium", "2025-04-22 12:00")
+        self.task_list.addItem(str(task))
+        self.title_input.clear()
+
+    def run(self):
+        self.show()
 
 if __name__ == "__main__":
-    unittest.main()
+    app = QApplication(sys.argv)
+
+    auth = Authenticator()
+    auth.register("test_user", "password123")
+    user = auth.login("test_user", "password123")
+
+    task_app = TaskApp(user)
+    task_app.run()
+
+    sys.exit(app.exec())
