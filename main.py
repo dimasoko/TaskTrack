@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QToolBar, QHeaderView
 )
 
-# --- Logging setup ---
+# логирование
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -23,7 +23,7 @@ logging.basicConfig(
     filemode='a'
 )
 
-# --- Data Storage ---
+# хранение
 class Storage:
     FILENAME = "tasks.json"
 
@@ -46,7 +46,6 @@ class Storage:
         except Exception as e:
             logging.error(f"Failed to save {Storage.FILENAME}: {e}")
 
-# --- Domain Model ---
 class TaskBase(ABC):
     def __init__(self, task_id: int, title: str, description: str,
                  due_date: datetime, priority: str):
@@ -54,7 +53,7 @@ class TaskBase(ABC):
         self._title = title
         self._description = description
         self._due_date = due_date
-        self._priority = priority  # "High", "Medium", "Low"
+        self._priority = priority  
         self._completed = False
 
     @property
@@ -117,7 +116,7 @@ class Task(TaskBase):
     def is_overdue(self) -> bool:
         return not self.completed and datetime.now() > self.due_date
 
-# --- User & Authentication ---
+# юзер и логин
 class User:
     def __init__(self, name: str, email: str, password: str):
         self._name = name
@@ -191,7 +190,6 @@ class Authenticator:
             raise ValueError("Неверный email или пароль")
         return user
 
-# --- GUI: Authentication ---
 class AuthWindow(QMainWindow):
     def __init__(self, auth: Authenticator):
         super().__init__()
@@ -265,7 +263,7 @@ class AuthWindow(QMainWindow):
         self.main.show()
         self.close()
 
-# --- GUI: New Task Dialog ---
+# окно нового таска
 class TaskDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -301,7 +299,7 @@ class TaskDialog(QDialog):
         prio = self.prio_combo.currentText()
         return title, desc, due, prio
 
-# --- GUI: Main Application ---
+# домашнее окно
 class MainWindow(QMainWindow):
     def __init__(self, auth: Authenticator, user: User):
         super().__init__()
@@ -309,20 +307,17 @@ class MainWindow(QMainWindow):
         self.user = user
         self.setWindowTitle(f"Task Tracker — {user.name}")
         self.resize(800, 600)
-
-        # pale turquoise background
         pal = self.palette()
         pal.setColor(QPalette.Window, QColor('#575CEB'))
         self.setPalette(pal)
 
-        # toolbar with Exit
         exit_btn = QPushButton("Выход")
         exit_btn.clicked.connect(self.close)
         tb = QToolBar()
         tb.addWidget(exit_btn)
         self.addToolBar(Qt.TopToolBarArea, tb)
 
-        # tabs: Current, Archive
+        # вкладки
         tabs = QTabWidget()
         tabs.addTab(self._build_current_tab(), "Текущие задачи")
         tabs.addTab(self._build_archive_tab(), "Архив")
